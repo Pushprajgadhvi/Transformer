@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Self-Attention Transformer – Live Visualizer</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg: #0b0d17;
+      --bg2: #11141f;
+      --bg3: #181c2d;
+      --border: #2a2f4a;
+      --text: #e2e8f8;
+      --muted: #6b7280;
+      --accent: #7c6fff;
+      --accent2: #56cfda;
+      --accent3: #f97316;
+      --q-color: #a78bfa;
+      --k-color: #34d399;
+      --v-color: #f59e0b;
+      --attn-color: #f97316;
+      --glow: rgba(124,111,255,0.3);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ─── HEADER ─── */
+    header {
+      background: linear-gradient(135deg, #1a1040 0%, #0d1535 50%, #0b1a30 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 20px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky; top: 0; z-index: 100;
+      backdrop-filter: blur(20px);
+    }
+    header h1 {
+      font-size: 1.4rem; font-weight: 700;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    header p { font-size: .8rem; color: var(--muted); margin-top: 2px; }
+    .badge {
+      background: linear-gradient(135deg, var(--accent), #5b4fcf);
+      color: #fff; font-size: .7rem; font-weight: 600;
+      padding: 4px 10px; border-radius: 20px; letter-spacing: .05em;
+    }
+
+    /* ─── LAYOUT ─── */
+    .container { max-width: 1440px; margin: 0 auto; padding: 28px 24px; }
+    .grid { display: grid; gap: 20px; }
+    .grid-2 { grid-template-columns: 1fr 1fr; }
+    .grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+
+    /* ─── CARDS ─── */
+    .card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      transition: box-shadow .3s;
+    }
+    .card:hover { box-shadow: 0 4px 32px var(--glow); }
+    .card-title {
+      font-size: .75rem; font-weight: 700; letter-spacing: .1em;
+      text-transform: uppercase; color: var(--muted);
+      margin-bottom: 16px; display: flex; align-items: center; gap: 8px;
+    }
+    .card-title .dot { width: 8px; height: 8px; border-radius: 50%; }
+
+    /* ─── INPUT SECTION ─── */
+    .input-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+    .token-input {
+      flex: 1; min-width: 220px;
+      background: var(--bg3); border: 1px solid var(--border);
+      color: var(--text); font-family: 'JetBrains Mono', monospace;
+      font-size: .9rem; border-radius: 10px; padding: 10px 14px;
+      outline: none; transition: border .2s;
+    }
+    .token-input:focus { border-color: var(--accent); }
+    .btn {
+      padding: 10px 22px; border-radius: 10px; border: none;
+      font-family: 'Inter', sans-serif; font-weight: 600;
+      font-size: .9rem; cursor: pointer; transition: all .2s;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), #5b4fcf);
+      color: #fff;
+    }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px var(--glow); }
+    .btn-secondary {
+      background: var(--bg3); border: 1px solid var(--border); color: var(--text);
+    }
+    .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* Sliders */
+    .slider-row { display: flex; align-items: center; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
+    .slider-group { display: flex; flex-direction: column; gap: 4px; }
+    .slider-group label { font-size: .72rem; color: var(--muted); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+    .slider-group .val { font-family: 'JetBrains Mono', monospace; font-size: .8rem; color: var(--accent2); }
+    input[type=range] {
+      -webkit-appearance: none; width: 120px; height: 4px;
+      background: var(--border); border-radius: 2px; outline: none;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none; width: 14px; height: 14px;
+      background: var(--accent); border-radius: 50%; cursor: pointer;
+    }
+
+    /* ─── TOKENS ─── */
+    #token-bar { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+    .token-chip {
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 8px; padding: 6px 14px;
+      font-family: 'JetBrains Mono', monospace; font-size: .85rem;
+      cursor: pointer; transition: all .2s; user-select: none;
+    }
+    .token-chip:hover { border-color: var(--accent); }
+    .token-chip.active {
+      background: linear-gradient(135deg, rgba(124,111,255,.25), rgba(86,207,218,.15));
+      border-color: var(--accent); color: var(--accent);
+      box-shadow: 0 0 12px rgba(124,111,255,.4);
+    }
+    .token-idx { font-size: .65rem; color: var(--muted); margin-right: 4px; }
+
+    /* ─── MATRICES ─── */
+    .matrix-wrap {
+      overflow-x: auto;
+      margin-top: 8px;
+    }
+    .matrix-label { font-size: .72rem; font-weight: 700; letter-spacing: .08em; margin-bottom: 6px; text-transform: uppercase; }
+    table.mat {
+      border-collapse: collapse;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .72rem;
+    }
+    table.mat th {
+      padding: 4px 8px; color: var(--muted); font-weight: 600;
+      border-bottom: 1px solid var(--border); text-align: center;
+    }
+    table.mat td {
+      padding: 5px 10px; text-align: right;
+      transition: background .3s;
+    }
+    table.mat tr:hover td { background: rgba(124,111,255,.06); }
+
+    /* ─── CANVAS AREA ─── */
+    #attn-canvas-wrap {
+      position: relative;
+      background: var(--bg3);
+      border-radius: 12px;
+      padding: 16px;
+    }
+    #attn-canvas { display: block; width: 100%; border-radius: 8px; }
+
+    /* ─── HEATMAP ─── */
+    #heatmap-grid {
+      display: grid;
+      gap: 3px;
+    }
+    .heat-cell {
+      width: 100%; aspect-ratio: 1;
+      border-radius: 4px;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .65rem; font-weight: 600;
+      cursor: pointer;
+      transition: transform .15s, box-shadow .15s;
+    }
+    .heat-cell:hover { transform: scale(1.1); z-index: 5; box-shadow: 0 4px 12px rgba(0,0,0,.5); }
+
+    /* ─── STEP EXPLAINER ─── */
+    .step-list { list-style: none; display: flex; flex-direction: column; gap: 12px; }
+    .step-item {
+      display: flex; gap: 12px; align-items: flex-start;
+      padding: 12px 14px; border-radius: 10px;
+      background: var(--bg3); border: 1px solid transparent;
+      transition: all .3s;
+    }
+    .step-item.active { border-color: var(--accent); background: rgba(124,111,255,.08); }
+    .step-num {
+      min-width: 26px; height: 26px; border-radius: 50%;
+      background: var(--border); display: flex; align-items: center;
+      justify-content: center; font-size: .72rem; font-weight: 700;
+    }
+    .step-item.active .step-num { background: var(--accent); }
+    .step-text h4 { font-size: .82rem; font-weight: 600; margin-bottom: 2px; }
+    .step-text p { font-size: .75rem; color: var(--muted); line-height: 1.5; }
+
+    /* ─── FORMULA ─── */
+    .formula-box {
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 12px; padding: 16px 20px; margin-top: 12px;
+      font-family: 'JetBrains Mono', monospace; font-size: .85rem;
+      line-height: 1.8; color: var(--accent2);
+      letter-spacing: .04em;
+    }
+    .hl-q { color: var(--q-color); }
+    .hl-k { color: var(--k-color); }
+    .hl-v { color: var(--v-color); }
+    .hl-a { color: var(--attn-color); }
+
+    /* ─── ANIMATED FLOW ─── */
+    @keyframes pulse-glow {
+      0%, 100% { box-shadow: 0 0 8px rgba(124,111,255,.4); }
+      50% { box-shadow: 0 0 24px rgba(124,111,255,.8); }
+    }
+    .pulse { animation: pulse-glow 2s ease-in-out infinite; }
+
+    @keyframes slide-in {
+      from { opacity: 0; transform: translateX(-10px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+    .slide-in { animation: slide-in .4s ease forwards; }
+
+    /* ─── SCORES BAR ─── */
+    .score-bars { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+    .score-row { display: flex; align-items: center; gap: 10px; }
+    .score-token { font-family: 'JetBrains Mono', monospace; font-size: .78rem; width: 80px; flex-shrink: 0; }
+    .score-bar-wrap { flex: 1; height: 18px; background: var(--bg3); border-radius: 4px; overflow: hidden; }
+    .score-bar-fill {
+      height: 100%; border-radius: 4px;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      transition: width .6s cubic-bezier(.25,.8,.25,1);
+    }
+    .score-val { font-family: 'JetBrains Mono', monospace; font-size: .72rem; color: var(--muted); width: 50px; text-align: right; }
+
+    /* ─── OUTPUT ─── */
+    .output-vec {
+      display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px;
+    }
+    .output-dim {
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 6px; padding: 6px 10px;
+      font-family: 'JetBrains Mono', monospace; font-size: .72rem;
+      color: var(--v-color); text-align: center; min-width: 54px;
+      transition: background .3s;
+    }
+
+    /* ─── LEGEND ─── */
+    .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; }
+    .legend-item { display: flex; align-items: center; gap: 6px; font-size: .75rem; }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+    /* ─── TABS ─── */
+    .tabs { display: flex; gap: 6px; margin-bottom: 16px; }
+    .tab {
+      padding: 7px 16px; border-radius: 8px;
+      font-size: .78rem; font-weight: 600; cursor: pointer;
+      border: 1px solid var(--border); background: transparent;
+      color: var(--muted); transition: all .2s;
+    }
+    .tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* ─── RESPONSIVE ─── */
+    @media (max-width: 900px) {
+      .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    }
+
+    /* ─── SCROLLBAR ─── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* tooltip */
+    .tip {
+      position: absolute; background: #1e2235; border: 1px solid var(--border);
+      border-radius: 8px; padding: 8px 12px; font-size: .72rem;
+      pointer-events: none; z-index: 200; white-space: nowrap;
+      box-shadow: 0 4px 20px rgba(0,0,0,.5);
+      opacity: 0; transition: opacity .15s;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>⚡ Self-Attention Transformer — Live Visualizer</h1>
+    <p>Interact with real Q, K, V computations and see attention flow in real-time</p>
+  </div>
+  <span class="badge">LIVE MODEL</span>
+</header>
+
+<div class="container">
+
+  <!-- ═══ INPUT ═══ -->
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-title"><div class="dot" style="background:var(--accent)"></div>Input Sentence</div>
+    <div class="input-row">
+      <input id="sentence-input" class="token-input" type="text"
+        value="The cat sat on mat" placeholder="Type a sentence..." />
+      <button class="btn btn-primary" onclick="run()">▶ Run</button>
+      <button class="btn btn-secondary" onclick="randomSentence()">🎲 Random</button>
+    </div>
+    <div class="slider-row">
+      <div class="slider-group">
+        <label>d_model <span class="val" id="dm-val">8</span></label>
+        <input type="range" id="d-model" min="4" max="16" step="4" value="8" oninput="document.getElementById('dm-val').textContent=this.value;run()"/>
+      </div>
+      <div class="slider-group">
+        <label>Temperature <span class="val" id="temp-val">1.0</span></label>
+        <input type="range" id="temperature" min="0.1" max="3" step="0.1" value="1.0"
+          oninput="document.getElementById('temp-val').textContent=parseFloat(this.value).toFixed(1);run()"/>
+      </div>
+      <div class="slider-group">
+        <label>Speed <span class="val" id="speed-val">1×</span></label>
+        <input type="range" id="anim-speed" min="0.5" max="4" step="0.5" value="1"
+          oninput="document.getElementById('speed-val').textContent=this.value+'×'"/>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ TOKEN BAR ═══ -->
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-title"><div class="dot" style="background:var(--accent2)"></div>Tokens — click to inspect</div>
+    <div id="token-bar"></div>
+  </div>
+
+  <!-- ═══ MAIN GRID ═══ -->
+  <div class="grid grid-3" style="margin-bottom:20px">
+
+    <!-- Q K V Matrices -->
+    <div class="card">
+      <div class="card-title"><div class="dot" style="background:var(--q-color)"></div>Q · K · V Projections</div>
+      <div class="tabs">
+        <button class="tab active" onclick="showTab('q')">Q</button>
+        <button class="tab" onclick="showTab('k')">K</button>
+        <button class="tab" onclick="showTab('v')">V</button>
+      </div>
+      <div id="tab-q" class="tab-content active">
+        <p class="matrix-label" style="color:var(--q-color)">Query Matrix</p>
+        <div class="matrix-wrap"><div id="mat-q"></div></div>
+      </div>
+      <div id="tab-k" class="tab-content">
+        <p class="matrix-label" style="color:var(--k-color)">Key Matrix</p>
+        <div class="matrix-wrap"><div id="mat-k"></div></div>
+      </div>
+      <div id="tab-v" class="tab-content">
+        <p class="matrix-label" style="color:var(--v-color)">Value Matrix</p>
+        <div class="matrix-wrap"><div id="mat-v"></div></div>
+      </div>
+    </div>
+
+    <!-- Attention Heatmap -->
+    <div class="card">
+      <div class="card-title"><div class="dot" style="background:var(--attn-color)"></div>Attention Heatmap</div>
+      <p style="font-size:.72rem;color:var(--muted);margin-bottom:10px">Each cell = how much token (row) attends to (col)</p>
+      <div id="heatmap-grid"></div>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-dot" style="background:rgba(124,111,255,.8)"></div>High attention</div>
+        <div class="legend-item"><div class="legend-dot" style="background:rgba(50,50,80,.4)"></div>Low attention</div>
+      </div>
+    </div>
+
+    <!-- Scores for selected token -->
+    <div class="card">
+      <div class="card-title"><div class="dot" style="background:var(--k-color)"></div>Attention Scores — <span id="sel-token-label" style="color:var(--accent2)">select a token</span></div>
+      <p style="font-size:.72rem;color:var(--muted);margin-bottom:10px">Softmax(QKᵀ/√d_k) for selected query</p>
+      <div id="score-bars" class="score-bars"></div>
+    </div>
+
+  </div>
+
+  <!-- ═══ FLOW CANVAS + STEPS ═══ -->
+  <div class="grid grid-2" style="margin-bottom:20px">
+
+    <!-- Canvas Attention Flow -->
+    <div class="card">
+      <div class="card-title"><div class="dot" style="background:var(--accent)"></div>Attention Flow</div>
+      <div id="attn-canvas-wrap">
+        <canvas id="attn-canvas" height="320"></canvas>
+      </div>
+      <div class="legend" style="margin-top:10px">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div>Strong attention</div>
+        <div class="legend-item"><div class="legend-dot" style="background:rgba(124,111,255,.15)"></div>Weak attention</div>
+      </div>
+    </div>
+
+    <!-- Step-by-step explainer -->
+    <div class="card">
+      <div class="card-title"><div class="dot" style="background:var(--accent2)"></div>Step-by-Step Mechanics</div>
+      <ul class="step-list" id="step-list">
+        <li class="step-item" data-step="0">
+          <div class="step-num">1</div>
+          <div class="step-text">
+            <h4>Tokenise Input</h4>
+            <p>Split sentence into tokens; each gets an embedding vector of size d_model.</p>
+          </div>
+        </li>
+        <li class="step-item" data-step="1">
+          <div class="step-num">2</div>
+          <div class="step-text">
+            <h4>Linear Projections → Q, K, V</h4>
+            <p>Multiply embeddings by learned W_Q, W_K, W_V weight matrices.</p>
+          </div>
+        </li>
+        <li class="step-item" data-step="2">
+          <div class="step-num">3</div>
+          <div class="step-text">
+            <h4>Scaled Dot-Product Scores</h4>
+            <p>Compute QKᵀ / √d_k. Scale prevents vanishing gradients in softmax.</p>
+          </div>
+        </li>
+        <li class="step-item" data-step="3">
+          <div class="step-num">4</div>
+          <div class="step-text">
+            <h4>Softmax → Attention Weights</h4>
+            <p>Convert scores to probabilities. Each row sums to 1. Temperature controls sharpness.</p>
+          </div>
+        </li>
+        <li class="step-item" data-step="4">
+          <div class="step-num">5</div>
+          <div class="step-text">
+            <h4>Weighted Sum of Values → Output</h4>
+            <p>Output = Attention_Weights × V. Each token gets a context-aware representation.</p>
+          </div>
+        </li>
+      </ul>
+    </div>
+
+  </div>
+
+  <!-- ═══ OUTPUT + FORMULA ═══ -->
+  <div class="grid grid-2">
+
+    <!-- Output Vectors -->
+    <div class="card">
+      <div class="card-title"><div class="dot" style="background:var(--v-color)"></div>Output Vectors (Attention × V)</div>
+      <div id="output-section"></div>
+    </div>
+
+    <!-- Formula -->
+    <div class="card">
+      <div class="card-title"><div class="dot" style="background:var(--accent3)"></div>Core Formula</div>
+      <div class="formula-box">
+        Attention(<span class="hl-q">Q</span>, <span class="hl-k">K</span>, <span class="hl-v">V</span>) =
+        softmax<span class="hl-a">(</span><span class="hl-q">Q</span><span class="hl-k">Kᵀ</span>
+        / √d_k<span class="hl-a">)</span> · <span class="hl-v">V</span>
+      </div>
+      <div style="margin-top:16px;display:flex;flex-direction:column;gap:8px">
+        <div style="font-size:.8rem"><span style="color:var(--q-color);font-weight:700">Q (Query)</span> — What am I looking for?</div>
+        <div style="font-size:.8rem"><span style="color:var(--k-color);font-weight:700">K (Key)</span> — What do I have?</div>
+        <div style="font-size:.8rem"><span style="color:var(--v-color);font-weight:700">V (Value)</span> — What do I return?</div>
+        <div style="font-size:.8rem"><span style="color:var(--attn-color);font-weight:700">√d_k</span> — Temperature scaling</div>
+      </div>
+      <div id="stats" style="margin-top:16px;padding:12px;background:var(--bg3);border-radius:10px;font-size:.75rem;font-family:'JetBrains Mono';line-height:1.8;color:var(--muted)"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- TOOLTIP -->
+<div class="tip" id="tooltip"></div>
+
+<script>
+// ══════════════════════════════════════════════
+//  MATH UTILITIES
+// ══════════════════════════════════════════════
+const seeded = (s) => {
+  // simple seeded random (mulberry32)
+  return function() {
+    s |= 0; s = s + 0x6D2B79F5 | 0;
+    let t = Math.imul(s ^ s >>> 15, 1 | s);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+};
+
+let rng = seeded(42);
+let globalState = {};
+
+function resetRng(seed) { rng = seeded(seed); }
+
+function randNormal() {
+  let u = 0, v = 0;
+  while (u === 0) u = rng();
+  while (v === 0) v = rng();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+
+function createMatrix(rows, cols, scale=0.5) {
+  return Array.from({length:rows}, () => Array.from({length:cols}, () => +(randNormal() * scale).toFixed(4)));
+}
+
+function matMul(A, B) {
+  const rows = A.length, inner = B.length, cols = B[0].length;
+  return Array.from({length:rows}, (_, i) =>
+    Array.from({length:cols}, (__, j) =>
+      A[i].reduce((s, v, k) => s + v * B[k][j], 0)
+    )
+  );
+}
+
+function softmax(vec, temp=1.0) {
+  const scaled = vec.map(x => x / temp);
+  const max = Math.max(...scaled);
+  const exps = scaled.map(x => Math.exp(x - max));
+  const sum = exps.reduce((a,b) => a+b, 0);
+  return exps.map(x => x / sum);
+}
+
+function positionalEncoding(pos, d) {
+  return Array.from({length:d}, (_, i) =>
+    i % 2 === 0
+      ? Math.sin(pos / Math.pow(10000, i / d))
+      : Math.cos(pos / Math.pow(10000, (i-1) / d))
+  );
+}
+
+// ══════════════════════════════════════════════
+//  CORE SELF-ATTENTION
+// ══════════════════════════════════════════════
+function selfAttention(tokens, dModel, temperature) {
+  const n = tokens.length;
+  const seed = tokens.join('').split('').reduce((a,c) => a + c.charCodeAt(0), 0);
+  resetRng(seed);
+
+  // Embeddings = random + positional encoding
+  const embeddings = tokens.map((_, i) => {
+    const e = Array.from({length:dModel}, () => +(randNormal() * 0.5).toFixed(4));
+    const pe = positionalEncoding(i, dModel);
+    return e.map((v, j) => +(v + pe[j] * 0.1).toFixed(4));
+  });
+
+  // Weight matrices (d_model × d_model)
+  const Wq = createMatrix(dModel, dModel, 0.3);
+  const Wk = createMatrix(dModel, dModel, 0.3);
+  const Wv = createMatrix(dModel, dModel, 0.3);
+
+  // Q, K, V
+  const Q = matMul(embeddings, Wq).map(r => r.map(v => +v.toFixed(3)));
+  const K = matMul(embeddings, Wk).map(r => r.map(v => +v.toFixed(3)));
+  const V = matMul(embeddings, Wv).map(r => r.map(v => +v.toFixed(3)));
+
+  // Scores: Q × Kᵀ / √d_k
+  const sqrtDk = Math.sqrt(dModel);
+  const KT = K[0].map((_, j) => K.map(row => row[j]));
+  const rawScores = matMul(Q, KT).map(row => row.map(v => +(v / sqrtDk).toFixed(4)));
+
+  // Softmax attention weights
+  const attnWeights = rawScores.map(row => softmax(row, temperature).map(v => +v.toFixed(4)));
+
+  // Output = attn × V
+  const output = matMul(attnWeights, V).map(r => r.map(v => +v.toFixed(3)));
+
+  return { embeddings, Q, K, V, rawScores, attnWeights, output };
+}
+
+// ══════════════════════════════════════════════
+//  UI STATE
+// ══════════════════════════════════════════════
+let selectedToken = 0;
+let currentTokens = [];
+let activeStepIdx = -1;
+let stepTimer = null;
+
+const RANDOM_SENTENCES = [
+  "The cat sat on mat",
+  "I love deep learning",
+  "Transformers changed AI forever",
+  "Attention is all you need",
+  "Language models predict next word",
+  "Neural networks learn features",
+  "BERT reads both directions",
+];
+
+function randomSentence() {
+  const s = RANDOM_SENTENCES[Math.floor(Math.random() * RANDOM_SENTENCES.length)];
+  document.getElementById('sentence-input').value = s;
+  run();
+}
+
+// ══════════════════════════════════════════════
+//  RUN
+// ══════════════════════════════════════════════
+function run() {
+  const sentence = document.getElementById('sentence-input').value.trim();
+  if (!sentence) return;
+  const dModel = parseInt(document.getElementById('d-model').value);
+  const temperature = parseFloat(document.getElementById('temperature').value);
+
+  const tokens = sentence.split(/\s+/).filter(Boolean).slice(0, 8);
+  currentTokens = tokens;
+
+  const state = selfAttention(tokens, dModel, temperature);
+  globalState = { tokens, dModel, temperature, ...state };
+
+  renderTokenBar(tokens);
+  renderMatrices(state.Q, state.K, state.V, tokens, dModel);
+  renderHeatmap(state.attnWeights, tokens);
+  renderScoreBars(state.attnWeights[selectedToken], tokens, selectedToken);
+  renderCanvas(state.attnWeights, tokens);
+  renderOutput(state.output, tokens, state.attnWeights);
+  renderStats(tokens, dModel, temperature);
+  animateSteps();
+}
+
+// ══════════════════════════════════════════════
+//  TOKEN BAR
+// ══════════════════════════════════════════════
+function renderTokenBar(tokens) {
+  const bar = document.getElementById('token-bar');
+  bar.innerHTML = '';
+  tokens.forEach((t, i) => {
+    const chip = document.createElement('div');
+    chip.className = 'token-chip' + (i === selectedToken ? ' active' : '');
+    chip.innerHTML = `<span class="token-idx">[${i}]</span>${t}`;
+    chip.onclick = () => { selectedToken = i; highlightToken(i); };
+    bar.appendChild(chip);
+  });
+}
+
+function highlightToken(idx) {
+  document.querySelectorAll('.token-chip').forEach((c, i) => {
+    c.classList.toggle('active', i === idx);
+  });
+  document.getElementById('sel-token-label').textContent = `"${currentTokens[idx]}" (pos ${idx})`;
+  renderScoreBars(globalState.attnWeights[idx], currentTokens, idx);
+  renderCanvas(globalState.attnWeights, currentTokens, idx);
+  highlightHeatmapRow(idx);
+}
+
+// ══════════════════════════════════════════════
+//  MATRICES
+// ══════════════════════════════════════════════
+function renderMatrices(Q, K, V, tokens, dModel) {
+  renderMatrix('mat-q', Q, tokens, '#a78bfa');
+  renderMatrix('mat-k', K, tokens, '#34d399');
+  renderMatrix('mat-v', V, tokens, '#f59e0b');
+}
+
+function renderMatrix(id, mat, tokens, color) {
+  const el = document.getElementById(id);
+  const cols = mat[0].length;
+  let html = `<table class="mat"><thead><tr><th>Token</th>`;
+  for (let j=0; j<Math.min(cols,6); j++) html += `<th>d${j}</th>`;
+  if (cols > 6) html += `<th>…</th>`;
+  html += `</tr></thead><tbody>`;
+  mat.forEach((row, i) => {
+    html += `<tr><td style="color:${color};font-weight:600">${tokens[i]}</td>`;
+    row.slice(0, 6).forEach(v => {
+      const intensity = Math.min(Math.abs(v) / 0.8, 1);
+      const bg = v > 0 ? `rgba(124,111,255,${intensity*0.25})` : `rgba(249,115,22,${intensity*0.2})`;
+      html += `<td style="background:${bg}">${v.toFixed(2)}</td>`;
+    });
+    if (cols > 6) html += `<td style="color:var(--muted)">…</td>`;
+    html += `</tr>`;
+  });
+  html += `</tbody></table>`;
+  el.innerHTML = html;
+}
+
+// ══════════════════════════════════════════════
+//  HEATMAP
+// ══════════════════════════════════════════════
+function renderHeatmap(attn, tokens) {
+  const n = tokens.length;
+  const grid = document.getElementById('heatmap-grid');
+  const cellSize = Math.min(56, Math.floor((grid.offsetWidth || 300) / n));
+  grid.style.gridTemplateColumns = `repeat(${n}, ${cellSize}px)`;
+  grid.innerHTML = '';
+  attn.forEach((row, i) => {
+    row.forEach((val, j) => {
+      const cell = document.createElement('div');
+      cell.className = 'heat-cell';
+      cell.style.width = cell.style.height = cellSize + 'px';
+      cell.style.fontSize = cellSize < 40 ? '.55rem' : '.65rem';
+      applyHeatColor(cell, val);
+      cell.textContent = val.toFixed(2);
+      cell.dataset.row = i; cell.dataset.col = j;
+      cell.onclick = () => { selectedToken = i; highlightToken(i); };
+      cell.addEventListener('mouseenter', showTip);
+      cell.addEventListener('mouseleave', hideTip);
+      grid.appendChild(cell);
+    });
+  });
+}
+
+function applyHeatColor(cell, val) {
+  const alpha = Math.pow(val, 0.5);
+  const r = Math.round(80 + 175 * alpha);
+  const g = Math.round(80 + 30 * alpha);
+  const b = Math.round(120 + 135 * (1-alpha));
+  cell.style.background = `rgba(${r},${g},${b},${0.3 + alpha*0.7})`;
+  cell.style.color = val > 0.35 ? '#fff' : 'rgba(255,255,255,.5)';
+}
+
+function highlightHeatmapRow(rowIdx) {
+  document.querySelectorAll('.heat-cell').forEach(c => {
+    c.style.outline = 'none';
+    const r = parseInt(c.dataset.row);
+    if (r === rowIdx) c.style.outline = '2px solid var(--accent)';
+  });
+}
+
+// ══════════════════════════════════════════════
+//  SCORE BARS
+// ══════════════════════════════════════════════
+function renderScoreBars(weights, tokens, selIdx) {
+  document.getElementById('sel-token-label').textContent = `"${tokens[selIdx]}" (pos ${selIdx})`;
+  const container = document.getElementById('score-bars');
+  const maxW = Math.max(...weights);
+  container.innerHTML = '';
+  weights.forEach((w, i) => {
+    const pct = (w / maxW * 100).toFixed(1);
+    container.innerHTML += `
+      <div class="score-row slide-in">
+        <span class="score-token">${tokens[i]}</span>
+        <div class="score-bar-wrap">
+          <div class="score-bar-fill" style="width:${pct}%"></div>
+        </div>
+        <span class="score-val">${w.toFixed(3)}</span>
+      </div>`;
+  });
+}
+
+// ══════════════════════════════════════════════
+//  CANVAS FLOW
+// ══════════════════════════════════════════════
+let animFrameId = null;
+let animParticles = [];
+
+function renderCanvas(attn, tokens, focusIdx) {
+  const canvas = document.getElementById('attn-canvas');
+  const wrap = document.getElementById('attn-canvas-wrap');
+  canvas.width = wrap.offsetWidth - 32;
+  canvas.height = 320;
+  const ctx = canvas.getContext('2d');
+
+  if (animFrameId) cancelAnimationFrame(animFrameId);
+  animParticles = [];
+
+  const n = tokens.length;
+  const pad = 60;
+  const xStep = (canvas.width - pad * 2) / (n - 1 || 1);
+  const yTop = 60, yBot = 260;
+
+  // Node positions
+  const nodes = tokens.map((t, i) => ({ x: pad + i * xStep, label: t, idx: i }));
+
+  function drawFrame(t) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Draw connections
+    for (let i = 0; i < n; i++) {
+      if (focusIdx !== undefined && i !== focusIdx) continue;
+      for (let j = 0; j < n; j++) {
+        const w = attn[i][j];
+        if (w < 0.02) continue;
+        const alpha = Math.pow(w, 0.6);
+        ctx.beginPath();
+        ctx.moveTo(nodes[i].x, yTop + 20);
+        // Quadratic bezier
+        const cx = (nodes[i].x + nodes[j].x) / 2;
+        const cy = (yTop + yBot) / 2 - 40 * Math.sign(j - i) * (i === j ? 0 : 1);
+        ctx.quadraticCurveTo(cx, cy, nodes[j].x, yBot - 20);
+
+        const grad = ctx.createLinearGradient(nodes[i].x, yTop, nodes[j].x, yBot);
+        grad.addColorStop(0, `rgba(124,111,255,${alpha})`);
+        grad.addColorStop(1, `rgba(86,207,218,${alpha})`);
+        ctx.strokeStyle = grad;
+        ctx.lineWidth = Math.max(0.5, w * 5);
+        ctx.stroke();
+      }
+    }
+
+    // Animate particles
+    animParticles.forEach((p, pi) => {
+      p.progress += 0.008 * (parseFloat(document.getElementById('anim-speed').value));
+      if (p.progress > 1) { p.progress = 0; }
+      const from = nodes[p.from], to = nodes[p.to];
+      const cx = (from.x + to.x) / 2;
+      const cy = (yTop + yBot) / 2 - 40 * Math.sign(p.to - p.from) * (p.from === p.to ? 0 : 1);
+      const tt = p.progress;
+      const px = (1-tt)*(1-tt)*from.x + 2*(1-tt)*tt*cx + tt*tt*to.x;
+      const py = (1-tt)*(1-tt)*(yTop+20) + 2*(1-tt)*tt*cy + tt*tt*(yBot-20);
+      ctx.beginPath();
+      ctx.arc(px, py, 3 + p.w * 3, 0, Math.PI*2);
+      ctx.fillStyle = `rgba(255,255,255,${p.w * 0.9})`;
+      ctx.fill();
+    });
+
+    // Draw top nodes (queries)
+    nodes.forEach((nd, i) => {
+      const isSelected = focusIdx === i || focusIdx === undefined;
+      ctx.beginPath();
+      ctx.arc(nd.x, yTop, 18, 0, Math.PI*2);
+      const grad = ctx.createRadialGradient(nd.x, yTop, 2, nd.x, yTop, 18);
+      grad.addColorStop(0, isSelected ? '#a78bfa' : '#3d3f5c');
+      grad.addColorStop(1, isSelected ? '#5b4fcf' : '#252740');
+      ctx.fillStyle = grad;
+      ctx.fill();
+      ctx.strokeStyle = isSelected ? '#a78bfa' : 'transparent';
+      ctx.lineWidth = 2; ctx.stroke();
+      ctx.fillStyle = '#fff'; ctx.font = '600 10px Inter'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(nd.label.substring(0,4), nd.x, yTop);
+      ctx.fillStyle = 'rgba(160,160,200,.6)'; ctx.font = '9px Inter';
+      ctx.fillText('Q', nd.x, yTop - 28);
+    });
+
+    // Draw bottom nodes (keys)
+    nodes.forEach((nd, i) => {
+      const attnVal = focusIdx !== undefined ? attn[focusIdx][i] : attn.reduce((s,r) => s+r[i], 0)/n;
+      ctx.beginPath();
+      ctx.arc(nd.x, yBot, 18, 0, Math.PI*2);
+      const grad = ctx.createRadialGradient(nd.x, yBot, 2, nd.x, yBot, 18);
+      grad.addColorStop(0, `rgba(52,211,153,${0.4 + attnVal * 0.6})`);
+      grad.addColorStop(1, `rgba(16,100,70,${0.4 + attnVal * 0.6})`);
+      ctx.fillStyle = grad;
+      ctx.fill();
+      ctx.strokeStyle = `rgba(52,211,153,${0.3 + attnVal * 0.7})`;
+      ctx.lineWidth = 2; ctx.stroke();
+      ctx.fillStyle = '#fff'; ctx.font = '600 10px Inter'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(nd.label.substring(0,4), nd.x, yBot);
+      ctx.fillStyle = 'rgba(160,200,160,.6)'; ctx.font = '9px Inter';
+      ctx.fillText('K/V', nd.x, yBot + 28);
+    });
+
+    animFrameId = requestAnimationFrame(drawFrame);
+  }
+
+  // Seed particles
+  for (let i = 0; i < n; i++) {
+    if (focusIdx !== undefined && i !== focusIdx) continue;
+    for (let j = 0; j < n; j++) {
+      const w = attn[i][j];
+      if (w > 0.08) {
+        animParticles.push({ from: i, to: j, w, progress: Math.random() });
+      }
+    }
+  }
+
+  drawFrame(0);
+}
+
+// ══════════════════════════════════════════════
+//  OUTPUT
+// ══════════════════════════════════════════════
+function renderOutput(output, tokens, attn) {
+  const sec = document.getElementById('output-section');
+  sec.innerHTML = '';
+  tokens.forEach((t, i) => {
+    const topAttnIdx = attn[i].indexOf(Math.max(...attn[i]));
+    const row = document.createElement('div');
+    row.style.cssText = 'margin-bottom:12px';
+    row.innerHTML = `
+      <div style="font-family:'JetBrains Mono';font-size:.75rem;margin-bottom:4px;color:var(--text)">
+        <span style="color:var(--v-color);font-weight:700">${t}</span>
+        <span style="color:var(--muted);font-size:.68rem;margin-left:8px">→ mostly attends to "${tokens[topAttnIdx]}"</span>
+      </div>
+      <div class="output-vec">
+        ${output[i].slice(0,8).map(v => `
+          <div class="output-dim" style="background:rgba(245,158,11,${Math.min(Math.abs(v)/0.6,0.3)})">${v.toFixed(2)}</div>
+        `).join('')}
+        ${output[i].length > 8 ? '<div class="output-dim" style="color:var(--muted)">…</div>' : ''}
+      </div>`;
+    sec.appendChild(row);
+  });
+}
+
+// ══════════════════════════════════════════════
+//  STATS
+// ══════════════════════════════════════════════
+function renderStats(tokens, dModel, temperature) {
+  const n = tokens.length;
+  const dk = dModel;
+  document.getElementById('stats').innerHTML = `
+    Tokens (n): ${n} &nbsp;|&nbsp; d_model: ${dModel}<br>
+    √d_k: ${Math.sqrt(dk).toFixed(3)} &nbsp;|&nbsp; Temperature: ${temperature}<br>
+    Param count (W_Q+W_K+W_V): ${3 * dModel * dModel}<br>
+    Attention matrix size: ${n}×${n} = ${n*n} cells
+  `;
+}
+
+// ══════════════════════════════════════════════
+//  STEP ANIMATION
+// ══════════════════════════════════════════════
+function animateSteps() {
+  if (stepTimer) clearInterval(stepTimer);
+  const steps = document.querySelectorAll('.step-item');
+  let idx = 0;
+  steps.forEach(s => s.classList.remove('active'));
+
+  stepTimer = setInterval(() => {
+    steps.forEach(s => s.classList.remove('active'));
+    steps[idx].classList.add('active');
+    idx = (idx + 1) % steps.length;
+  }, 1800);
+}
+
+// ══════════════════════════════════════════════
+//  TABS
+// ══════════════════════════════════════════════
+function showTab(name) {
+  ['q','k','v'].forEach(t => {
+    document.getElementById('tab-'+t).classList.toggle('active', t === name);
+  });
+  document.querySelectorAll('.tab').forEach((btn, i) => {
+    btn.classList.toggle('active', ['q','k','v'][i] === name);
+  });
+}
+
+// ══════════════════════════════════════════════
+//  TOOLTIP
+// ══════════════════════════════════════════════
+function showTip(e) {
+  const cell = e.currentTarget;
+  const r = parseInt(cell.dataset.row), c = parseInt(cell.dataset.col);
+  const w = globalState.attnWeights[r][c];
+  const tip = document.getElementById('tooltip');
+  tip.innerHTML = `<b>"${currentTokens[r]}"</b> → <b>"${currentTokens[c]}"</b><br>Attention: <b>${(w*100).toFixed(1)}%</b>`;
+  tip.style.left = (e.pageX + 12) + 'px';
+  tip.style.top = (e.pageY - 36) + 'px';
+  tip.style.opacity = '1';
+}
+function hideTip() { document.getElementById('tooltip').style.opacity = '0'; }
+
+// ══════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════
+window.addEventListener('resize', () => {
+  if (globalState.tokens) {
+    renderHeatmap(globalState.attnWeights, globalState.tokens);
+    renderCanvas(globalState.attnWeights, globalState.tokens, selectedToken < globalState.tokens.length ? selectedToken : undefined);
+  }
+});
+
+run();
+</script>
+</body>
+</html>
